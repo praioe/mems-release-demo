@@ -24,6 +24,21 @@ jobs:
           persist-credentials: false
       - name: Extract verified public sources
         run: unzip -q MEMS-pages-source.zip -d site
+      - name: Run the published notebook's verification cells on Linux
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          notebook = json.loads(Path('MEMS-crosscheck.ipynb').read_text(encoding='utf-8'))
+          included = json.loads(Path('site/public/release-audit/MEMS-crosscheck.ipynb').read_text(encoding='utf-8'))
+          if notebook != included:
+              raise SystemExit('Published and packaged notebooks differ')
+          session = {'__name__': '__main__'}
+          for cell in notebook['cells']:
+              if cell['id'] in {'prepare', 'dependencies', 'audit'}:
+                  exec(compile(cell['source'], f"Notebook cell {cell['id']}", 'exec'), session)
+          PY
       - uses: actions/setup-node@v5
         with:
           node-version: 24
