@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -51,6 +52,23 @@ jobs:
         working-directory: site
       - uses: actions/upload-pages-artifact@v4
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: site/dist
+      - name: Wait for the Pages artifact to be listed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
+        run: |
+          for attempt in {1..8}; do
+            if artifact_id=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$ARTIFACT_NAME" --jq '.artifacts[] | select(.expired == false) | .id') && [ -n "$artifact_id" ]; then
+              echo "Pages artifact is ready: $artifact_id"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::GitHub has not listed the uploaded Pages artifact."
+          exit 1
       - uses: actions/deploy-pages@v4
         id: deployment
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
